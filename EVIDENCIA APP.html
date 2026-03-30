@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GACE - Control de Evidencias Pro (Cloud)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <style>
+        :root {
+            --blue-primary: #0288d1;
+            --blue-light: #e1f5fe;
+            --white: #ffffff;
+            --success-green: #e8f5e9;
+            --success-border: #43a047;
+            --danger-red: #f44336;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background-color: var(--blue-light); color: #333; }
+        .container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
+
+        .tabs { display: flex; gap: 5px; margin-bottom: -1px; }
+        .tab-btn {
+            padding: 12px 25px;
+            color: var(--blue-primary);
+            border: 1px solid #cfd8dc;
+            border-bottom: none;
+            background: #f8fdff;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-btn.active {
+            background: var(--white);
+            border-top: 4px solid var(--blue-primary);
+            padding-bottom: 15px;
+            z-index: 2;
+        }
+
+        .window { display: none; }
+        .window.active { display: block; }
+
+        .card {
+            background: var(--white);
+            padding: 25px;
+            border-radius: 0 12px 12px 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            border: 1px solid #cfd8dc;
+        }
+
+        .card-title {
+            display: flex; align-items: center; gap: 10px;
+            font-weight: bold; color: var(--blue-primary);
+            margin-bottom: 20px; border-bottom: 1px solid var(--blue-light); padding-bottom: 10px;
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        label { display: block; font-weight: bold; font-size: 0.9em; margin-bottom: 8px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #cfd8dc; border-radius: 8px; box-sizing: border-box; }
+
+        .photo-input-wrapper { background: #fafafa; border: 1px solid #ddd; padding: 8px; border-radius: 8px; transition: 0.3s; }
+        .photo-input-wrapper.has-file { background: var(--success-green); border-color: var(--success-border); }
+
+        .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn-generate { background: #505050; color: white; margin-top: 10px; }
+        .btn-save { background: #28a745; color: white; }
+        .btn-update { background: #007bff; color: white; }
+        .btn-delete { background: var(--danger-red); color: white; }
+        .btn-clear { background: #f44336; color: white; width: auto; padding: 8px 15px; font-size: 0.8em; margin-top: 10px; }
+
+        .photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        @media (max-width: 600px) { .photo-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        #loading { font-size: 0.8em; color: var(--blue-primary); font-weight: normal; margin-left: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('evidencia', event)"><span class="material-icons">camera_alt</span> EVIDENCIA</button>
+        <button class="tab-btn" onclick="switchTab('cursos', event)"><span class="material-icons">library_books</span> CURSOS</button>
+    </div>
+
+    <div id="evidencia" class="window active">
+        <div class="card">
+            <div class="card-title">
+                <span class="material-icons">assignment</span> DATOS DE LA SESIÓN
+                <span id="loading">Sincronizando...</span>
+            </div>
+            <div class="grid">
+                <div><label>Seleccionar Curso:</label><select id="selectCurso" onchange="actualizarCuerpo()"></select></div>
+                <div><label>Planta:</label><input type="text" id="planta" placeholder="Planta..."></div>
+                <div><label>Fecha:</label><input type="date" id="fecha"></div>
+            </div>
+            <div style="margin-top:15px"><label>Contenido del Entrenamiento:</label><textarea id="contVista" rows="3" readonly style="background:#f9f9f9"></textarea></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="material-icons">info</span> DETALLES Y FOTOS</div>
+            <div class="grid">
+                <div><label>Turno:</label><select id="turno"><option value="">-- Seleccione --</option><option value="1">1</option><option value="2">2</option></select></div>
+                <div><label>Dirigido a:</label><input type="text" id="dirigido" value="Oficiales de seguridad"></div>
+                <div><label>Motivo:</label>
+                    <select id="motivo">
+                        <option value="Requerimiento">Requerimiento</option>
+                        <option value="Necesidad del Usuario">Necesidad del Usuario</option>
+                        <option value="Certificación">Certificación</option>
+                        <option value="Actualización">Actualización</option>
+                        <option value="Plan Anual" selected>Plan Anual</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top:15px"><label>Capacitadores:</label><input type="text" id="instructores" placeholder="Nombres..."></div>
+            
+            <div class="photo-grid" style="margin-top:20px">
+                <div class="photo-input-wrapper" id="wrap1"><input type="file" id="img1" accept="image/*" onchange="checkFile(1)"></div>
+                <div class="photo-input-wrapper" id="wrap2"><input type="file" id="img2" accept="image/*" onchange="checkFile(2)"></div>
+                <div class="photo-input-wrapper" id="wrap3"><input type="file" id="img3" accept="image/*" onchange="checkFile(3)"></div>
+                <div class="photo-input-wrapper" id="wrap4"><input type="file" id="img4" accept="image/*" onchange="checkFile(4)"></div>
+                <div class="photo-input-wrapper" id="wrap5"><input type="file" id="img5" accept="image/*" onchange="checkFile(5)"></div>
+                <div class="photo-input-wrapper" id="wrap6"><input type="file" id="img6" accept="image/*" onchange="checkFile(6)"></div>
+                <div class="photo-input-wrapper" id="wrap7"><input type="file" id="img7" accept="image/*" onchange="checkFile(7)"></div>
+                <div class="photo-input-wrapper" id="wrap8"><input type="file" id="img8" accept="image/*" onchange="checkFile(8)"></div>
+            </div>
+        </div>
+
+        <div class="card" style="background: #fff3cd;">
+            <div class="card-title" style="color: #856404;"><span class="material-icons">picture_as_pdf</span> ANEXOS</div>
+            <div class="grid">
+                <div><label>Lista de Asistencia:</label><input type="file" id="pdfLista" accept="application/pdf"></div>
+                <div><label>Exámenes:</label><input type="file" id="pdfExamen" accept="application/pdf"></div>
+            </div>
+            <button class="btn btn-clear" onclick="borrarAnexos()">BORRAR ANEXOS SELECCIONADOS</button>
+        </div>
+
+        <button class="btn btn-generate" onclick="generarPDFCompleto()">GENERAR PDF FINAL Y REINICIAR</button>
+    </div>
+
+    <div id="cursos" class="window">
+        <div class="card">
+            <div class="card-title"><span class="material-icons">settings</span> PANEL DE CURSOS EN LA NUBE</div>
+            <label>Editar curso existente:</label>
+            <select id="selectEdit" onchange="prepararEdicion()"><option value="">-- Nuevo Curso --</option></select>
+            <div style="margin-top:20px">
+                <label>Nombre del curso:</label><input type="text" id="nNombre">
+                <label>Contenido:</label><textarea id="nCont" rows="5"></textarea>
+            </div>
+            <div class="grid">
+                <button class="btn btn-save" onclick="guardarCurso()">GUARDAR NUEVO</button>
+                <button class="btn btn-update" onclick="actualizarCursoExistente()">ACTUALIZAR CAMBIOS</button>
+                <button class="btn btn-delete" onclick="eliminarCurso()">ELIMINAR CURSO</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { jsPDF } = window.jspdf; const { PDFDocument } = PDFLib;
+    const API_URL = "https://script.google.com/macros/s/AKfycbyfgmlDaQOOAuNmR3fY08fw_NGPmOt1N5Bv3e-3f8jIHUWstaGdlOwTsPDNA6FilU8/exec";
+    let db = [];
+
+    // --- FUNCIONES DE BASE DE DATOS (NUBE) ---
+
+    async function cargarCursos() {
+        document.getElementById('loading').style.display = 'inline';
+        try {
+            const res = await fetch(API_URL);
+            db = await res.json();
+            actualizarSelectors();
+        } catch (e) { 
+            console.error("Error cargando base de datos", e);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    async function enviarAccion(datos) {
+        document.getElementById('loading').style.display = 'inline';
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(datos)
+            });
+            setTimeout(cargarCursos, 1500);
+        } catch (e) {
+            console.error("Error en la operación", e);
+        }
+    }
+
+    function actualizarSelectors() {
+        const op = db.map((x, i) => `<option value="${i}">${x.n}</option>`).join('');
+        document.getElementById('selectCurso').innerHTML = '<option value="">-- Seleccione un curso --</option>' + op;
+        document.getElementById('selectEdit').innerHTML = '<option value="">-- Nuevo Curso --</option>' + op;
+    }
+
+    function limpiarCamposCurso() {
+        document.getElementById('nNombre').value = ""; 
+        document.getElementById('nCont').value = "";
+        document.getElementById('selectEdit').value = "";
+    }
+
+    async function guardarCurso() {
+        const n = document.getElementById('nNombre').value, c = document.getElementById('nCont').value;
+        if(!n || !c) return alert("Faltan datos");
+        await enviarAccion({ action: "save", n, c });
+        limpiarCamposCurso();
+        alert("Petición de guardado enviada.");
+    }
+
+    async function actualizarCursoExistente() {
+        const idx = document.getElementById('selectEdit').value;
+        if(idx === "") return alert("Seleccione un curso para actualizar");
+        
+        await enviarAccion({ 
+            action: "update", 
+            oldName: db[idx].n, 
+            n: document.getElementById('nNombre').value, 
+            c: document.getElementById('nCont').value 
+        });
+        limpiarCamposCurso();
+        alert("Petición de actualización enviada.");
+    }
+
+    async function eliminarCurso() {
+        const idx = document.getElementById('selectEdit').value;
+        if(idx === "") return alert("Seleccione un curso para eliminar");
+        
+        if(confirm(`¿Eliminar definitivamente: ${db[idx].n}?`)) {
+            await enviarAccion({ action: "delete", n: db[idx].n });
+            limpiarCamposCurso();
+            alert("Petición de eliminación enviada.");
+        }
+    }
+
+    // --- FUNCIONES DE INTERFAZ ---
+
+    function switchTab(id, event) {
+        document.querySelectorAll('.window').forEach(w => w.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(event) event.currentTarget.classList.add('active');
+    }
+
+    function checkFile(n) {
+        const inp = document.getElementById('img'+n);
+        document.getElementById('wrap'+n).classList.toggle('has-file', inp.files.length > 0);
+    }
+
+    function borrarAnexos() {
+        document.getElementById('pdfLista').value = "";
+        document.getElementById('pdfExamen').value = "";
+    }
+
+    function actualizarCuerpo() {
+        const idx = document.getElementById('selectCurso').value;
+        document.getElementById('contVista').value = idx !== "" ? db[idx].c : "";
+    }
+
+    function prepararEdicion() {
+        const idx = document.getElementById('selectEdit').value;
+        document.getElementById('nNombre').value = idx !== "" ? db[idx].n : "";
+        document.getElementById('nCont').value = idx !== "" ? db[idx].c : "";
+    }
+
+    function limpiarInterfaz() {
+        document.getElementById('selectCurso').value = "";
+        document.getElementById('planta').value = "";
+        document.getElementById('fecha').value = "";
+        document.getElementById('contVista').value = "";
+        document.getElementById('turno').value = "";
+        document.getElementById('instructores').value = "";
+        document.getElementById('pdfLista').value = "";
+        document.getElementById('pdfExamen').value = "";
+        for(let i=1; i<=8; i++) { 
+            document.getElementById('img'+i).value = ""; 
+            document.getElementById('wrap'+i).classList.remove('has-file');
+        }
+    }
+
+    async function toB64(id) {
+        const f = document.getElementById(id).files[0];
+        if (!f) return null;
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width; canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(f);
+        });
+    }
+
+    async function generarPDFCompleto() {
+        const idx = document.getElementById('selectCurso').value;
+        const planta = document.getElementById('planta').value;
+        const fecha = document.getElementById('fecha').value;
+        const turno = document.getElementById('turno').value;
+        if(!idx || !planta || !fecha || !turno) return alert("Faltan datos básicos.");
+
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const fParts = fecha.split("-");
+        const fechaF = `${fParts[2]}/${fParts[1]}/${fParts[0]}`;
+
+        doc.setFillColor(80, 80, 80); doc.rect(0, 0, 210, 15, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+        doc.text("GRUPO ÁGUILAS - EVIDENCIA DE ENTRENAMIENTO", 105, 7, { align: "center" });
+        doc.setFontSize(9); doc.text("GACE", 105, 12, { align: "center" });
+
+        doc.setTextColor(0, 0, 0); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+        doc.text(`Departamento:`, 15, 25); doc.text(`Planta:`, 15, 30);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Grupo Águilas Capacitación Especializada`, 40, 25);
+        doc.text(`${planta}`, 28, 30);
+
+        doc.setFont("helvetica", "bold"); doc.text(`Contenido:`, 15, 37);
+        doc.setFont("helvetica", "normal");
+        const lines = doc.splitTextToSize(`${db[idx].c}`, 170);
+        doc.text(lines, 33, 37);
+
+        doc.autoTable({
+            startY: 37 + (lines.length * 5),
+            head: [['Turno', 'Cursos impartidos', 'Dirigido a', 'Motivo', 'Instructor', 'Fecha']],
+            body: [[turno + " Turno", db[idx].n, document.getElementById('dirigido').value, document.getElementById('motivo').value, document.getElementById('instructores').value, fechaF]],
+            theme: 'grid', headStyles: { fillColor: [80, 80, 80] }, styles: { fontSize: 7 }
+        });
+
+        let yF = doc.autoTable.previous.finalY + 10;
+        doc.setFillColor(255, 215, 0); doc.rect(15, yF, 180, 7, 'F');
+        doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
+        doc.text("EVIDENCIA FOTOGRÁFICA", 105, yF + 5, { align: "center" });
+
+        yF += 12; let x = 15, count = 0;
+        for(let i=1; i<=8; i++) {
+            const b = await toB64('img'+i);
+            if(b) {
+                doc.addImage(b, 'JPEG', x, yF, 42, 60); 
+                x += 45; count++;
+                if(count === 4) { x = 15; yF += 65; }
+            }
+        }
+
+        const gacePdfBytes = doc.output('arraybuffer');
+        const finalPdf = await PDFDocument.create();
+        const gaceDoc = await PDFDocument.load(gacePdfBytes);
+        const copiedPages = await finalPdf.copyPages(gaceDoc, gaceDoc.getPageIndices());
+        copiedPages.forEach(p => finalPdf.addPage(p));
+
+        for (const id of ['pdfLista', 'pdfExamen']) {
+            const input = document.getElementById(id);
+            if (input.files.length > 0) {
+                const bytes = await input.files[0].arrayBuffer();
+                const externalDoc = await PDFDocument.load(bytes);
+                const pages = await finalPdf.copyPages(externalDoc, externalDoc.getPageIndices());
+                pages.forEach(p => finalPdf.addPage(p));
+            }
+        }
+
+        const finalPdfBytes = await finalPdf.save();
+        const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Evidencia_${planta}_${turno}T_${fechaF.replace(/\//g,'-')}.pdf`;
+        link.click();
+        alert("Archivo generado con éxito.");
+        limpiarInterfaz();
+    }
+
+    window.onload = () => { 
+        cargarCursos(); 
+        document.getElementById('fecha').valueAsDate = new Date(); 
+    };
+</script>
+</body>
+</html>
