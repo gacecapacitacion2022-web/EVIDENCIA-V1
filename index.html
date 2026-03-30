@@ -374,7 +374,7 @@
         const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `Evidencia de Capacitación ${planta} ${turno}T ${fechaF.replace(/\//g,'-')}.pdf`;
+        link.download = `Evidencia de Capacitación ${planta} ${turno}Turno ${fechaF.replace(/\//g,'-')}.pdf`;
         link.click();
         alert("Archivo generado con éxito.");
         limpiarInterfaz();
