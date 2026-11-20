@@ -331,6 +331,10 @@
         });
     }
 
+    function limpiarTextoArchivo(texto) {
+        return String(texto || "").replace(/[\\/:*?"<>|]/g, "").trim();
+    }
+
     async function generarPDFCompleto() {
         const idx = document.getElementById('selectCurso').value;
         const planta = document.getElementById('planta').value;
@@ -401,9 +405,11 @@
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         
-        // Formato solicitado para el nombre del archivo
+        // Formato solicitado para el nombre del archivo con el curso al final
         const fechaArchivo = fechaF.replace(/\//g,'-');
-        link.download = `Evidencia de Capacitación ${planta} ${turno} ${fechaArchivo}.pdf`;
+        const plantaLimpia = limpiarTextoArchivo(planta);
+        const cursoLimpio = limpiarTextoArchivo(db[idx].nombre);
+        link.download = `Evidencia de Capacitación ${plantaLimpia} ${turno} ${fechaArchivo} ${cursoLimpio}.pdf`;
         
         link.click();
         alert("Archivo generado con éxito.");
