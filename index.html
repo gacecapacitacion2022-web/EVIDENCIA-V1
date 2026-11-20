@@ -22,7 +22,7 @@
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background-color: var(--blue-light); color: #333; }
         .container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
 
-        /* Estilo del nuevo título solicitado */
+        /* Estilo del título solicitado */
         .titulo-interfaz {
             color: var(--blue-primary);
             font-size: 1.4rem;
@@ -91,6 +91,7 @@
 <body>
 
 <div class="container">
+    <!-- Título en azul solicitado -->
     <div class="titulo-interfaz">GACE-EVIDENCIA DE CAPACITACIÓN</div>
 
     <div class="tabs">
@@ -180,17 +181,35 @@
 
 <script>
     const { jsPDF } = window.jspdf; const { PDFDocument } = PDFLib;
-    const API_URL = "https://script.google.com/macros/s/AKfycbyfgmlDaQOOAuNmR3fY08fw_NGPmOt1N5Bv3e-3f8jIHUWstaGdlOwTsPDNA6FilU8/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbzPOSz_sqbQNlnRPm7VYGGJ8wydhR9h5JKtP3eLgTL6s9GvMKhx5ui9PjAdjw1DMWbY/exec";
     let db = [];
+
+    // --- FUNCIONES DE BASE DE DATOS (NUBE: id, nombre, contenido) ---
 
     async function cargarCursos() {
         document.getElementById('loading').style.display = 'inline';
         try {
             const res = await fetch(API_URL);
-            db = await res.json();
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const raw = await res.json();
+            console.log("Datos recibidos de Apps Script:", raw);
+
+            db = (Array.isArray(raw) ? raw : [])
+                .map(item => ({
+                    id: item.id ?? item.ID ?? "",
+                    nombre: String(item.nombre ?? item.Nombre ?? item.n ?? "").trim(),
+                    contenido: String(item.contenido ?? item.Contenido ?? item.c ?? "").trim()
+                }))
+                .filter(item => item.nombre !== "")
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
             actualizarSelectors();
-        } catch (e) { console.error("Error cargando base de datos", e); }
-        finally { document.getElementById('loading').style.display = 'none'; }
+        } catch (e) {
+            console.error("Error cargando base de datos:", e);
+            alert("No se pudieron cargar los cursos. Revisa la consola (F12) o la URL del Apps Script.");
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
     }
 
     async function enviarAccion(datos) {
@@ -202,7 +221,8 @@
     }
 
     function actualizarSelectors() {
-        const op = db.map((x, i) => `<option value="${i}">${x.n}</option>`).join('');
+        const ordenados = [...db].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+        const op = ordenados.map((x, i) => `<option value="${i}">${x.nombre}</option>`).join('');
         document.getElementById('selectCurso').innerHTML = '<option value="">-- Seleccione un curso --</option>' + op;
         document.getElementById('selectEdit').innerHTML = '<option value="">-- Nuevo Curso --</option>' + op;
     }
@@ -214,9 +234,11 @@
     }
 
     async function guardarCurso() {
-        const n = document.getElementById('nNombre').value, c = document.getElementById('nCont').value;
-        if(!n || !c) return alert("Faltan datos");
-        await enviarAccion({ action: "save", n, c });
+        const nombre = document.getElementById('nNombre').value.trim();
+        const contenido = document.getElementById('nCont').value.trim();
+        if(!nombre || !contenido) return alert("Faltan datos");
+        const id = Date.now().toString();
+        await enviarAccion({ action: "save", id, nombre, contenido });
         limpiarCamposCurso();
         alert("Petición de guardado enviada.");
     }
@@ -224,7 +246,11 @@
     async function actualizarCursoExistente() {
         const idx = document.getElementById('selectEdit').value;
         if(idx === "") return alert("Seleccione un curso para actualizar");
-        await enviarAccion({ action: "update", oldName: db[idx].n, n: document.getElementById('nNombre').value, c: document.getElementById('nCont').value });
+        const id = db[idx].id;
+        const nombre = document.getElementById('nNombre').value.trim();
+        const contenido = document.getElementById('nCont').value.trim();
+        if(!nombre || !contenido) return alert("Faltan datos");
+        await enviarAccion({ action: "update", id, nombre, contenido });
         limpiarCamposCurso();
         alert("Petición de actualización enviada.");
     }
@@ -232,12 +258,15 @@
     async function eliminarCurso() {
         const idx = document.getElementById('selectEdit').value;
         if(idx === "") return alert("Seleccione un curso para eliminar");
-        if(confirm(`¿Eliminar definitivamente: ${db[idx].n}?`)) {
-            await enviarAccion({ action: "delete", n: db[idx].n });
+        const curso = db[idx];
+        if(confirm(`¿Eliminar definitivamente: ${curso.nombre}?`)) {
+            await enviarAccion({ action: "delete", id: curso.id });
             limpiarCamposCurso();
             alert("Petición de eliminación enviada.");
         }
     }
+
+    // --- FUNCIONES DE INTERFAZ ---
 
     function switchTab(id, event) {
         document.querySelectorAll('.window').forEach(w => w.classList.remove('active'));
@@ -258,13 +287,13 @@
 
     function actualizarCuerpo() {
         const idx = document.getElementById('selectCurso').value;
-        document.getElementById('contVista').value = idx !== "" ? db[idx].c : "";
+        document.getElementById('contVista').value = idx !== "" ? db[idx].contenido : "";
     }
 
     function prepararEdicion() {
         const idx = document.getElementById('selectEdit').value;
-        document.getElementById('nNombre').value = idx !== "" ? db[idx].n : "";
-        document.getElementById('nCont').value = idx !== "" ? db[idx].c : "";
+        document.getElementById('nNombre').value = idx !== "" ? db[idx].nombre : "";
+        document.getElementById('nCont').value = idx !== "" ? db[idx].contenido : "";
     }
 
     function limpiarInterfaz() {
@@ -326,13 +355,13 @@
 
         doc.setFont("helvetica", "bold"); doc.text(`Contenido:`, 15, 37);
         doc.setFont("helvetica", "normal");
-        const lines = doc.splitTextToSize(`${db[idx].c}`, 170);
+        const lines = doc.splitTextToSize(`${db[idx].contenido}`, 170);
         doc.text(lines, 33, 37);
 
         doc.autoTable({
             startY: 37 + (lines.length * 5),
             head: [['Turno', 'Cursos impartidos', 'Dirigido a', 'Motivo', 'Instructor', 'Fecha']],
-            body: [[turno, db[idx].n, document.getElementById('dirigido').value, document.getElementById('motivo').value, document.getElementById('instructores').value, fechaF]],
+            body: [[turno, db[idx].nombre, document.getElementById('dirigido').value, document.getElementById('motivo').value, document.getElementById('instructores').value, fechaF]],
             theme: 'grid', headStyles: { fillColor: [80, 80, 80] }, styles: { fontSize: 7 }
         });
 
